@@ -1,73 +1,126 @@
-# 📹 YouTube API Integration for Muxi Baby Feed App
+# YouTube API Integration
 
-This document demonstrates how our application uses the YouTube Data API to serve personalized, time-sensitive, and age-relevant video content to caregivers through a baby tracking app. It supports our request for increased quota usage.
+## Overview
+The YouTube API integration is implemented in the `YouTubeSource` class, which extends the `BaseSource` abstract class. This integration handles fetching and formatting video content from YouTube.
 
----
+## Implementation Details
 
-## 🔧 Project Overview
+### Class Structure
+```python
+class YouTubeSource(BaseSource):
+    """Source for fetching YouTube videos"""
+```
 
-Our app, **Muxi**, helps caregivers discover age-appropriate and timely baby care videos by integrating YouTube video search results into a personalized content feed. The content is:
+### Main Methods
 
-- **Contextualized by baby’s age**
-- **Tailored to the current time of day**
-- **Randomized across multiple parenting and development topics**
+#### 1. Fetch Content
+```python
+async def fetch_content(self, query: str, limit: int = 5, page_token: str = None) -> Dict[str, Any]:
+    """
+    Fetch content from YouTube based on the query
+    
+    Args:
+        query: Search query or keywords
+        limit: Maximum number of items to return
+        page_token: Token for pagination
+        
+    Returns:
+        Dictionary containing videos and next page token
+    """
+```
 
-We use the YouTube API to search for relevant content and display the videos directly to the user in-app.
+### Video Processing
 
----
+#### 1. Video Details Format
+```python
+video = {
+    "id": item["id"],
+    "title": item["snippet"]["title"],
+    "description": item["snippet"]["description"],
+    "thumbnail": item["snippet"]["thumbnails"]["high"]["url"],
+    "channel": item["snippet"]["channelTitle"],
+    "published_at": item["snippet"]["publishedAt"],
+    "url": f"https://www.youtube.com/watch?v={item['id']}",
+    "embed_url": f"https://www.youtube.com/embed/{item['id']}",
+    "duration": duration,
+    "view_count": view_count,
+    "source": "youtube"
+}
+```
 
-## 📲 YouTube API Usage Details
+### Utility Methods
 
-All YouTube API usage is handled in the [`feed.py`](./app/routers/feed.py) module. We use:
+#### 1. Duration Formatting
+```python
+def _format_duration(self, duration_iso):
+    """
+    Convert ISO 8601 duration to a readable format
+    Example: PT1H30M15S -> 1h 30m 15s
+    """
+```
 
-- **Search functionality** to fetch relevant videos
-- **Pagination support** using `pageToken`
-- **SafeSearch filtering** followed by our own keyword filtering
-- **Caching** to avoid redundant requests
-- **Per-profile query generation** to ensure usage is purposeful and relevant
+#### 2. View Count Formatting
+```python
+def _format_view_count(self, view_count):
+    """
+    Format view count to a readable format
+    Example: 1234567 -> 1,234,567
+    """
+```
 
----
+## Error Handling
 
-## 🔍 Example: API Query Flow
+### Common Issues
+1. **403 Forbidden Error**
+   - Invalid API key
+   - Expired API key
+   - Exceeded API quota
+   - Insufficient permissions
 
-In `feed.py`, the following process is followed:
+2. **Rate Limiting**
+   - Implemented caching with `@lru_cache`
+   - Cache duration: 1 hour
+   - Maximum cache size: 32 entries
 
-1. **Contextual query generation** based on baby profile and time:
+## Best Practices
 
-   ```python
-   query = generate_contextual_query(profile)
+### 1. API Key Management
+- Store API key in environment variables
+- Rotate keys periodically
+- Monitor quota usage
 
+### 2. Error Handling
+- Implement fallback to mock data
+- Log errors with full traceback
+- Cache successful responses
 
-2.	Query sent to YouTube API via SourceManager:
-result = await source_manager.fetch_from_source("youtube", query, limit, page_token)
-videos = result.get("videos", [])
+### 3. Performance Optimization
+- Use caching for frequent queries
+- Batch video detail requests
+- Format data efficiently
 
+## Integration Points
 
-	3.	Filtering inappropriate content manually:
+### 1. Feed Router
+- Used in `/api/feed` endpoint
+- Handles pagination
+- Implements fallback mechanism
 
-filtered_videos = _filter_inappropriate_content(videos)
+### 2. Source Manager
+- Manages multiple content sources
+- Provides unified interface
+- Handles source selection
 
-	4.	Fallback to mock data if API fails, ensuring app stability.
-💡 Personalization Logic
-We build queries using:
-	•	👶 Baby age in months
-	•	🕐 Time of day (e.g., “睡前活动”, “下午活动”)
-	•	🎯 Randomized topic keywords from categories like:
-	•	Activities: 手眼协调, 语言发展
-	•	Education: 认知启蒙
-	•	Care: 疾病预防
-	•	Parenting: 亲子阅读
+## Monitoring and Logging
 
-Example generated query:
-9个月宝宝 手眼协调 睡前活动
+### 1. Key Metrics
+- API response times
+- Error rates
+- Cache hit rates
+- Quota usage
 
-🔄 Refresh Logic
-
-Users can refresh their video feed, which:
-	•	Regenerates a new randomized topic query
-	•	Clears YouTube cache every 3 refreshes to avoid overuse
-	•	Sends a fresh YouTube API request to retrieve new content
-
-_cached_youtube_fetch_wrapper.cache_clear()
-query = generate_contextual_query(profile, force_new=True)
-
+### 2. Logging
+- Request details
+- Error messages
+- Performance metrics
+- Cache statistics 
